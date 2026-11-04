@@ -1,0 +1,76 @@
+name: Daily Sync Engine
+
+on:
+  schedule:
+    # Runs Monday through Friday around 13:30 UTC (~9:30 AM EDT)
+    - cron: '30 13 * * 1-5'
+  workflow_dispatch: # Allows manual trigger from the GitHub web UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Add Natural Time Jitter
+        run: |
+          # Jitters start time between 1 and 25 minutes so runs are not on the exact minute
+          DELAY=$(( (RANDOM % 25 + 1) * 60 ))
+          echo "Waiting $DELAY seconds..."
+          sleep $DELAY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Execute Multi-Stage Commits
+        run: |
+          # Git identity: Ensure this email matches your GitHub account email exactly!
+          git config user.name "François-Xavier Dussault"
+          git config user.email "francois-xavier.dussault@lcieducation.net"
+
+          ROLL=$(( RANDOM % 100 ))
+          echo "Activity roll: $ROLL"
+
+          # 15% chance to skip the day completely (simulates a natural rest day / gray square)
+          if [ $ROLL -lt 15 ]; then
+            echo "Taking a natural rest day. No commits generated."
+            exit 0
+          fi
+
+          TODAY=$(date +'%Y-%m-%d')
+
+          # Stage 1: Fetch raw data (Always runs on active days -> Light Green)
+          python generate_digest.py fetch
+          git add data/
+          if ! git diff --staged --quiet; then
+            git commit -m "data(feed): sync raw feed records for ${TODAY}"
+          fi
+
+          # Stage 2: Build Markdown summary (Runs on ~55% of active days -> Medium Green)
+          if [ $ROLL -ge 45 ]; then
+            sleep $(( RANDOM % 20 + 10 ))
+            python generate_digest.py build
+            git add digests/
+            if ! git diff --staged --quiet; then
+              git commit -m "docs(digest): format compiled updates for ${TODAY}"
+            fi
+          fi
+
+          # Stage 3: Reindex catalog (Runs on ~25% of active days -> Darker Green)
+          if [ $ROLL -ge 75 ]; then
+            sleep $(( RANDOM % 20 + 10 ))
+            python generate_digest.py index
+            git add README.md
+            if ! git diff --staged --quiet; then
+              git commit -m "chore(catalog): refresh index directory for ${TODAY}"
+            fi
+          fi
+
+          # Push all staged commits at once
+          git push origin main
