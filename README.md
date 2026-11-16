@@ -3,6 +3,7 @@
 An automated service tracking top industry discussions, architecture write-ups, and developer news.
 
 ### Recent Archives
+- [2026-11-16](digests/2026-11-16.md)
 - [2026-11-13](digests/2026-11-13.md)
 - [2026-11-10](digests/2026-11-10.md)
 - [2026-11-09](digests/2026-11-09.md)
